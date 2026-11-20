@@ -1,3 +1,4 @@
+import os
 """
 Django settings for django_blog project.
 
@@ -75,16 +76,26 @@ WSGI_APPLICATION = 'django_blog.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'learning_db',
-        'USER': 'db_user',  # Replace with your actual MySQL/MariaDB username
-        'PASSWORD': '1969',  # Replace with your actual MySQL/MariaDB password
-        'HOST': 'localhost',  # Typically 'localhost' if the database is on the same machine
-        'PORT': '3306',  # Default port for MySQL/MariaDB
+# SQLite by default. To use MySQL/MariaDB, set DB_NAME, DB_USER, DB_PASSWORD (and
+# optionally DB_HOST, DB_PORT) as environment variables and `pip install mysqlclient`.
+if os.environ.get('DB_NAME'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ['DB_NAME'],
+            'USER': os.environ.get('DB_USER', ''),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '3306'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -131,3 +142,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'profile'
 LOGOUT_REDIRECT_URL = '/'
 
+LOGIN_URL = 'login'

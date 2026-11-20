@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import CreateView, UpdateView, DeleteView
 from django.utils.decorators import method_decorator
 from .models import Post, Comment
-from .forms import CommentForm
+from .forms import CommentForm, PostForm
 from django.views.generic.edit import CreateView
 from django.db.models import Q
 from django.shortcuts import render
@@ -47,15 +47,17 @@ class PostByTagListView(ListView):
 
 
 
-class CommentCreateView(CreateView):
+class CommentCreateView(LoginRequiredMixin, CreateView):
     model = Comment
     form_class = CommentForm
-    template_name = 'blog/comment_post_detail.html'
+    template_name = 'blog/comment_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.post_obj = get_object_or_404(Post, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        # Automatically associate the comment with the correct post and author
-        post = Post.objects.get(pk=self.kwargs['pk'])
-        form.instance.post = post
+        form.instance.post = self.post_obj
         form.instance.author = self.request.user
         return super().form_valid(form)
 
@@ -63,8 +65,14 @@ class CommentCreateView(CreateView):
         return self.object.post.get_absolute_url()
 
 
-@method_decorator(login_required, name='dispatch')
-class CommentUpdateView(UpdateView):
+class CommentAuthorRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """Only the comment's author may edit or delete it."""
+
+    def test_func(self):
+        return self.get_object().author == self.request.user
+
+
+class CommentUpdateView(CommentAuthorRequiredMixin, UpdateView):
     model = Comment
     form_class = CommentForm
     template_name = 'blog/comment_form.html'
@@ -72,8 +80,8 @@ class CommentUpdateView(UpdateView):
     def get_success_url(self):
         return self.object.post.get_absolute_url()
 
-@method_decorator(login_required, name='dispatch')
-class CommentDeleteView(DeleteView):
+
+class CommentDeleteView(CommentAuthorRequiredMixin, DeleteView):
     model = Comment
     template_name = 'blog/comment_confirm_delete.html'
 
@@ -90,7 +98,7 @@ def register(request):
             return redirect('login')
     else:
         form = CustomUserCreationForm()
-    return render(request, 'registration/register.html', {'form': form})
+    return render(request, 'blog/register.html', {'form': form})
 
 @login_required
 def profile(request):
@@ -116,7 +124,7 @@ def profile(request):
         return redirect('profile')
 
     # Handle GET request to render profile details
-    return render(request, 'registration/profile.html', {'user': request.user})
+    return render(request, 'blog/profile.html', {'user': request.user})
 
 
 
@@ -130,10 +138,16 @@ class PostDetailView(DetailView):
     template_name = 'blog/post_detail.html'
     context_object_name = 'post'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['comments'] = self.object.comment_set.select_related('author').order_by('created_at')
+        context['comment_form'] = CommentForm()
+        return context
+
 class PostCreateView(LoginRequiredMixin, CreateView):
     model = Post
     template_name = 'blog/post_form.html'
-    fields = ['title', 'content']
+    form_class = PostForm
 
     def form_valid(self, form):
         form.instance.author = self.request.user
@@ -141,9 +155,8 @@ class PostCreateView(LoginRequiredMixin, CreateView):
 
 class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Post
-    fields = ['title', 'content']  # Fields to update
-    template_name = 'blog/post_form.html'  # Path to the template
-    success_url = '/'  # Redirect after successful update
+    form_class = PostForm
+    template_name = 'blog/post_form.html'
 
     def test_func(self):
         post = self.get_object()
@@ -160,10 +173,12 @@ class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
 
 
 def search(request):
-    query = request.GET.get('q')
-    results = Post.objects.filter(
-        Q(title__icontains=query) | Q(content__icontains=query) | Q(tags__name__icontains=query)
-    ).distinct()
+    query = request.GET.get('q', '').strip()
+    results = Post.objects.none()
+    if query:
+        results = Post.objects.filter(
+            Q(title__icontains=query) | Q(content__icontains=query) | Q(tags__name__icontains=query)
+        ).distinct()
     return render(request, 'blog/search_results.html', {'results': results, 'query': query})
 
 

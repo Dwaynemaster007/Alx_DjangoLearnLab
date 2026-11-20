@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 
 class Author(models.Model):
     name = models.CharField(max_length=100)
@@ -10,6 +10,7 @@ class Author(models.Model):
 class Book(models.Model):
     title = models.CharField(max_length=100)
     author = models.ForeignKey(Author, on_delete=models.CASCADE, related_name='books')
+    publication_year = models.PositiveIntegerField(null=True, blank=True)
     
     def __str__(self):
         return self.title
@@ -35,7 +36,7 @@ ROLE_CHOICES = (
 )
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)  # Link to Django's built-in User model
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # Link to the custom user model
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
 
     def __str__(self):
@@ -47,3 +48,15 @@ class UserProfile(models.Model):
             ("can_change_book", "Can change a book"),
             ("can_delete_book", "Can delete a book"),
         ]
+
+
+
+# Give every new user a profile (default role: Member) so the role checks work
+from django.db.models.signals import post_save  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
+
+
+@receiver(post_save, sender=settings.AUTH_USER_MODEL)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.get_or_create(user=instance, defaults={'role': 'Member'})

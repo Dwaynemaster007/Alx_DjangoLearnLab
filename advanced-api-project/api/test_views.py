@@ -1,7 +1,7 @@
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth.models import User
-from .models import Book
+from .models import Author, Book
 from rest_framework.permissions import IsAuthenticated
 
 
@@ -13,9 +13,11 @@ class BookAPITestCase(APITestCase):
         Create test user, authenticate, and create sample book data.
         """
         self.user = User.objects.create_user(username='testuser', password='password')
+        self.author = Author.objects.create(name='Test Author')
+        self.other_author = Author.objects.create(name='New Author')
         self.book_data = {
             'title': 'Test Book',
-            'author': 'Test Author',
+            'author': self.author,
             'publication_year': 2024
         }
         self.book = Book.objects.create(**self.book_data)
@@ -27,7 +29,7 @@ class BookAPITestCase(APITestCase):
         """Test the creation of a book."""
         data = {
             'title': 'New Book',
-            'author': 'New Author',
+            'author': self.other_author.id,
             'publication_year': 2024
         }
         response = self.client.post(self.url_list, data, format='json')
@@ -52,14 +54,14 @@ class BookAPITestCase(APITestCase):
         """Test updating an existing book."""
         data = {
             'title': 'Updated Book',
-            'author': 'Updated Author',
+            'author': self.author.id,
             'publication_year': 2025
         }
         response = self.client.put(self.url_detail, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.book.refresh_from_db()
         self.assertEqual(self.book.title, data['title'])
-        self.assertEqual(self.book.author, data['author'])
+        self.assertEqual(self.book.author_id, data['author'])
         self.assertEqual(self.book.publication_year, data['publication_year'])
 
     def test_delete_book(self):
@@ -74,7 +76,7 @@ class BookAPITestCase(APITestCase):
         self.client.logout()
         data = {
             'title': 'Another Book',
-            'author': 'Another Author',
+            'author': self.author.id,
             'publication_year': 2024
         }
         response = self.client.post(self.url_list, data, format='json')

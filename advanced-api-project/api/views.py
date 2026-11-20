@@ -14,7 +14,7 @@ class ListView(generics.ListAPIView):
     # Ensure filters.OrderingFilter and filters.SearchFilter are included exactly as required
     filter_backends = [filters.DjangoFilterBackend, SearchFilter, OrderingFilter]  # Correct usage of filters.OrderingFilter and filters.SearchFilter
     filterset_fields = ['title', 'author', 'publication_year']  # Filtering fields
-    search_fields = ['title', 'author']  # Search fields
+    search_fields = ['title', 'author__name']  # Search by title or author name
     ordering_fields = ['title', 'publication_year']  # Ordering fields
 
     # ListView supports filtering by title, author, and publication year
@@ -41,3 +41,24 @@ class DeleteView(generics.DestroyAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
     permission_classes = [IsAuthenticated]
+
+
+# ---------------------------------------------------------------------------
+# Combined REST endpoints used by the API routes and tests:
+#   /api/books/       GET list (filter, search, order), POST create
+#   /api/books/<id>/  GET, PUT/PATCH, DELETE
+# ---------------------------------------------------------------------------
+class BookListCreateView(generics.ListCreateAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    filter_backends = [filters.DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['title', 'author', 'publication_year']
+    search_fields = ['title', 'author__name']
+    ordering_fields = ['title', 'publication_year']
+
+
+class BookDetailUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Book.objects.all()
+    serializer_class = BookSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
